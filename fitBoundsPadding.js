@@ -4,10 +4,56 @@
 
 		google.maps.Map.prototype.fitBounds = function(bounds, opts) {
 				if(opts) {
-						var map     = this,
-								scale   = Math.pow(2,this.getZoom());
-
+						 
 						/* Helper methods */
+				    var _latRad = function(lat) {
+				      var radX2, sin;
+				      sin = Math.sin(lat * Math.PI / 180);
+				      radX2 = Math.log((1 + sin) / (1 - sin)) / 2;
+				      return Math.max(Math.min(radX2, Math.PI), -Math.PI) / 2;
+				    }
+				    
+				    var _zoom = function(mapPx, worldPx, fraction) {
+				      return Math.floor(Math.log(mapPx / worldPx / fraction) / Math.LN2);
+				    }
+
+						var _getMapDims = function(){
+							var scale = Math.pow(2, map.getZoom());
+							var nw = new google.maps.LatLng(
+							    map.getBounds().getNorthEast().lat(),
+							    map.getBounds().getSouthWest().lng()
+							);
+							var se = new google.maps.LatLng(
+							    map.getBounds().getSouthWest().lat(),
+							    map.getBounds().getNorthEast().lng()
+							);
+							var worldCoordinateNW = map.getProjection().fromLatLngToPoint(nw);
+							var worldCoordinateSE = map.getProjection().fromLatLngToPoint(se);
+							return {
+							    width: Math.floor((worldCoordinateSE.x - worldCoordinateNW.x) * scale),
+							    height: Math.floor((worldCoordinateSE.y - worldCoordinateNW.y) * scale)
+							}
+	    			}
+
+	  				var _getScale = function(){
+	  					var WORLD_DIM, ZOOM_MAX, latFraction, latRad, latZoom, lngDiff, lngFraction, lngZoom, ne, sw, zoom;
+
+							WORLD_DIM = {
+						      height: 256,
+						      width: 256
+						    };
+					    mapDim = _getMapDims()
+					    ZOOM_MAX = 21;
+					    ne = bounds.getNorthEast();
+					    sw = bounds.getSouthWest();
+					    latFraction = (_latRad(ne.lat()) - _latRad(sw.lat())) / Math.PI;
+					    lngDiff = ne.lng() - sw.lng();
+					    lngFraction = (lngDiff < 0 ? lngDiff + 360 : lngDiff) / 360;
+					    latZoom = _zoom(mapDim.height, WORLD_DIM.height, latFraction);
+					    lngZoom = _zoom(mapDim.width, WORLD_DIM.width, lngFraction);
+					    zoom = Math.min(latZoom, lngZoom, ZOOM_MAX);
+					    return Math.pow(2,zoom);
+	  				}
 
 						var _convertLatLngToPixel = function(latlng) {
 								var proj = map.getProjection();
@@ -61,7 +107,9 @@
 										oldFitBounds.call(map, bounds);
 								});
 						}
-
+						
+						var map     = this,
+								scale   = _getScale();
 						_extendBoundsByPaddingValue(bounds, opts);
 				}
 				
